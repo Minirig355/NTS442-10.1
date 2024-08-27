@@ -1,0 +1,499 @@
+Intro to CyberSec
+
+Incident Response & Forensics
+	Volatility
+		Task 1 - Intro
+		Task 2 - Volatility Overview
+			• Capable of extracting digital artifacts from RAM
+		Task 3 - Installing Volatility
+			• Uses python and can utilize YARA
+		Task 4 - Memory Extraction
+			• Accepts memdumps from FTK and Redline among others
+		Task 5 - Plugins Overview
+			• Usage of python has streamlined the plugin creation process significantly
+				○ python3 plugins are in short supply as of now since it's newly ported
+		Task 6 - Identifying Image Info and Profiles
+			• imageinfo (plugin) - Gives best OS guesses in order of most likely (not always correct)
+				○ More info can be found at "python3 vol.py -f <file> <os>.info" (windows/linux/mac)
+		Task 7 - Listing Processes and Connections
+			• pslist - list processes
+				○ python3 vol.py -f <file> windows.pslist
+			• psscan - may find unlisted processes
+				○ python3 vol.py -f <file> windows.psscan
+			• pstree - lists based on PID
+			• netstat - ident network connections
+			• dlllist - list DLLs associated with processes in the memdump
+		Task 8 - Volatility Hunting and Detection Capabilities
+			• malfind - Helps in ident code injection into processes. Lists PID and relevant info.
+				○ python3 vol.py -f <file> windows.malfind
+			• Can use yarascan to utilize yara rules
+				○ python3 vol.py -f <file> windows.yarascan
+		Task 9 - Advanced Memory Forensics
+			• Types of hooking evasion techniques:
+				○ SSDT Hooks (System Service Descriptor Table)
+				○ IRP Hooks
+				○ IAT Hooks
+				○ EAT Hooks
+				○ Inline Hooks
+			• This task only focuses on SSDT since it's the most common
+				○ ssdt - Search for ssdt hooks
+			• modules - dump list of loaded kernel modules (good for ident ACTIVE malware, may miss idle malware)
+			• driverscan - scan for drivers
+			• Some other useful modules for malware scanning:
+				○ modscan
+				○ driverirp
+				○ callbacks
+				○ idt
+				○ apihooks
+				○ moddump
+				○ handles
+			• Don't forget! grep and other functions also work in conjuction with this tool
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	Investigating Windows
+		Lab
+			• First question I answer with sysinfo
+			• Next is finding a logon event in eventviewer (ID: 4624)
+			• This question isn't about who last logged in, but when a specific user did, so I search for that user
+			• Now, finding the IP that it connects to on startup, *startup*, I check the reg entry for run to find it
+			• Finding accts with admin access, I do this using powershell
+				○ net localgroup "administrators"
+			• Next is to find scheduled tasks, so of course I check task scheduler, this reveals a netcat listener that runs daily
+			• Next few steps are just simple information gathering
+			• How were the passwords dumped? Safe to assume it was mimikatz, which it is
+				○ Even if I know it's mimi, I still hunt for it, finding it in the /tmp/ folder with the other files I discovered
+			• Finding mimikatz I can find where their C2 server is since it calls back to it
+			• I did need to look this one up unfortunately, the file is located where log files are stored for Microsoft Internet Information Services
+			• This file leads me to the last port the attacker opened
+			• Because DNS searches locally first, I check the hosts file for DNS poisoning, seeing Google as a localhost address LOL
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	Windows Forensics
+		Task 1 - Introduction to Windows Forensics
+		Task 2 - Windows Registry and Forensics
+			• This task has a nice in depth table going over keys in the registry with in-depth descriptions too long for notes, here's a link
+				○ https://tryhackme.com/r/room/windowsforensics1
+		Task 3 - Accessing registry hives offline
+			• Located in:
+				○ C:\Windows\System32\Config
+			• EXCEPT NTUSER.dat and USRCLASS.dat which are in the user folder:
+				○ C:\Users\<username>
+				○ or (if live) %userprofile%
+			• One other exception is the Amcache hive for recently ran programs:
+				○ C:\Windows\AppCompat\Programs\Amcache.hve
+			• Logs for registry changes are located in the same dir as the hive
+			• Backups of hives are:
+				○ C:\Windows\System32\Config\RegBack
+		Task 4 - Data Acquisition
+			• This goes over some programs used for data acquisition, I've already used FTK so I'll stick to that, but some others are:
+				○ KAPE
+				○ Autopsy (another good one)
+		Task 5 - Exploring Windows Registry
+			• AccessData (FTK) also makes a registry viewer that's convenient, but they're not the only ones:
+				○ Registry Viewer (AccessData)
+				○ Zimmerman's Registry Explorer
+				○ RegRipper
+		Task 6 - System Information and System Accounts
+			• OSver
+				○ SOFTWARE\Microsoft\Windows NT\CurrentVersion
+			• Hives responsible for controlling system startup:
+				○ SYSTEM\ControlSet001 (what the system booted with)
+				○ SYSTEM\ControlSet002 (last known good config)
+			• Computer Name
+				○ SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName
+			• Time Zone
+				○ SYSTEM\CurrentControlSet\Control\TimeZoneInformation
+			• Network Interfaces and Past Networks
+				○ SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces
+				○ SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures\Unmanaged
+				○ SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures\Managed
+			• Autostart
+				○ NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Run
+				○ NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\RunOnce
+				○ SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce
+				○ SOFTWARE\Microsoft\Windows\CurrentVersion\policies\Explorer\Run
+				○ SOFTWARE\Microsoft\Windows\CurrentVersion\Run
+				○ SYSTEM\CurrentControlSet\Services (autorun == start key set to 0x02)
+			• SAM and user info
+				○ SAM\Domains\Account\Users
+		Task 7 - Usage or knowledge of files/folders
+			• Recent files:
+				○ NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs
+			• Office Recent Files:
+				○ NTUSER.DAT\Software\Microsoft\Office\VERSION
+				○ NTUSER.DAT\Software\Microsoft\Office\15.0\Word
+				○ NTUSER.DAT\Software\Microsoft\Office\VERSION\UserMRU\LiveID_####\FileMRU
+			• ShellBags (Can reveal most recently used files and folders)
+				○ USRCLASS.DAT\Local Settings\Software\Microsoft\Windows\Shell\Bags
+				○ USRCLASS.DAT\Local Settings\Software\Microsoft\Windows\Shell\BagMRU
+				○ NTUSER.DAT\Software\Microsoft\Windows\Shell\BagMRU
+				○ NTUSER.DAT\Software\Microsoft\Windows\Shell\Bags
+			• Open/Save and LastVisited Dialog MRUs
+				○ NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\OpenSavePIDlMRU
+				○ NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\LastVisitedPidlMRU
+			• Windows Explorer Address/Search Bars
+				○ NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\TypedPaths
+				○ NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\WordWheelQuery
+		Task 8 - Evidence of Execution
+			• UserAssist
+				○ NTUSER.DAT\Software\Microsoft\Windows\Currentversion\Explorer\UserAssist\{GUID}\Count
+			• ShimCache
+				○ SYSTEM\CurrentControlSet\Control\Session Manager\AppCompatCache
+				○ AppCompatCacheParser.exe --csv <path to save output> -f <path to SYSTEM hive for data parsing> -c <control set to parse>
+			• Amcache
+				○ C:\Windows\appcompat\Programs\Amcache.hve
+				○ Amcache.hve\Root\File\{Volume GUID}\
+			• BAM/DAM
+				○ SYSTEM\CurrentControlSet\Services\bam\UserSettings\{SID}
+				○ SYSTEM\CurrentControlSet\Services\dam\UserSettings\{SID}
+		Task 9 - External Devices/USB device forensics
+			• Device Identication
+				○ SYSTEM\CurrentControlSet\Enum\USBSTOR
+				○ SYSTEM\CurrentControlSet\Enum\USB
+			• First/Last Times
+				○ SYSTEM\CurrentControlSet\Enum\USBSTOR\Ven_Prod_Version\USBSerial#\Properties\{83da6326-97a6-4088-9453-a19231573b29}\####
+			• USB device Volume Name
+				○ SOFTWARE\Microsoft\Windows Portable Devices\Devices
+		Task 10 - Hands-On Challenge
+			• For this challenge I'm utilizing EZTools to do my research and find the answers
+			• Not much auxiliary research is needed as the information I need was either covered in these tasks or concepts taught in other rooms
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	Windows Forensics 2
+		Task 1 - Introduction
+		Task 2 - The FAT file systems
+			• File Allocation Table 
+				○ Clusters - Basic storage unit, groups of related bits of information
+				○ Directory - Info of file ident, file name, starting cluster, filename length
+			• FAT12, 16 and 32
+				○ The length of bits addressing clusters
+			• exFAT
+				○ Allows for larger files and volumes (max 128PB)
+		Task 3 - The NTFS File System
+			• New Technology File System
+				○ Largely replaced FAT on Windows systems
+				○ Increased security and a master file table (MFT)
+			• MFT Explorer (same dev of EZTools) lets you easily peruse the MFT
+		Task 4 - Recovering deleted files
+			• Often times deletion just means removing records of where the file is, but it can still be manually accessed by some tools
+				○ This can be done by making an image of the *entire* disk, so you can browse all sectors even unmarked ones
+		Task 5 - Evidence of Execution
+			• Windows Prefetech Files
+				○ C:\Windows\Prefetch\*.pf
+				○ Contains last run times, how many times, and any files and device handles used by the file
+				○ PECmd.exe to view easily
+			• Win10 Timeline
+				○ %userprofile%\AppData\Local\ConnectedDevicesPlatform\{randomfolder}\ActivitiesCache.db
+				○ A timeline of recently used apps and files stored in a SQLite db
+				○ WxTCmd.exe for easy viewing
+			• Windows Jump Lists
+				○ %userprofile%\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations
+				○ Shows recently opened files from the taskbar
+				○ JLECmd.exe for easy viewing
+		Task 6 - File/folder knowledge
+			• Shortcut Files
+				○ %userprofile%\AppData\Roaming\Microsoft\Windows\Recent\
+				○ %userprofile%\AppData\Roaming\Microsoft\Office\Recent\
+				○ LECmd.exe
+			• IE/Edge History
+				○ %userprofile%\AppData\Local\Microsoft\Windows\WebCache\WebCacheV*.dat
+				○ Parseable in Redline and other similar tools
+			• Jump Lists
+				○ %userprofile%\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations
+		Task 7 - External Devices/USB device forensics
+			• setupapi.dev.log - A log for when a new device is setupapi
+				○ C:\Windows\inf\setupapi.dev.log
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	Redline
+		Task 1 - Introduction
+			• A nicely wrapped (GUI) multi-OS forensic investigation tool
+		Task 2 - Data Collection
+			• Standard Collector
+				○ Gathers minimum data, but is faster
+			• Comprehensive Collector
+				○ Gathers the most data (+1hr long depending on machine)
+			• IOC Search Collecter (Win only)
+				○ Collects data relating and pertaining to IOCs fed into it with IOC Editor
+			• Memory tool can memdump, there's also System and Network which are straight-forward
+		Task 3 - The Redline Interface
+			• Goes over the UI, and touches on some notable features like timeline and TimeCrunches (only shows important data)
+		Task 4 - Standard Collector Analysis
+		Task 5 - IOC Search Collector
+			• IOC Editor can pipe in information for IOC Search Collector, but it's a separate app
+				○ https://fireeye.market/assets/apps/S7cWpi9W//9cb9857f/ug-ioc-editor.pdf
+			• It has a robust GUI that's fairly self explanatory to use to add IOCs to a list to search for
+		Task 6 - IOC Search Collector Analysis
+		Task 7 - Endpoint Investigation
+		Task 8 - Conclusion
+			• Redline User Guide: https://fireeye.market/assets/apps/211364/documents/877936_en.pdf
+			• IOC Editor User Guide: https://fireeye.market/assets/apps/S7cWpi9W//9cb9857f/ug-ioc-editor.pdf
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	Autopsy
+		Task 1 - Introduction
+			• Open-source digital forensics platform  
+		Task 2 - Workflow Overview and Case Analysis
+			• Create Case > Select Data Source > Configure ingest modules > Review artefacts > Create Report
+		Task 3 - Data Sources
+			• Mostly Disk Images and VM files, but physically connected drives and logical drives will work
+		Task 4 - Ingest Modules
+			• Plug-ins to manage what data you retrieve and also filter data you already have
+		Task 5 - The User Interface I
+		Task 6 - The User Interface II
+		Task 7 - Data Analysis
+			• Here is simply applying the filters/ingest modules efficiently and extracting data to answer the questions
+		Task 8 - Visualisation Tools
+			• Images/Videos: http://sleuthkit.org/autopsy/docs/user-docs/4.12.0/image_gallery_page.html
+			• Communications: http://sleuthkit.org/autopsy/docs/user-docs/4.12.0/communications_page.html
+			• Timeline: http://sleuthkit.org/autopsy/docs/user-docs/4.12.0/timeline_page.html
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	Disk Analysis & Autopsy
+		Windows 10 Disk Image
+			• Here I was given a machine with Autopsy and a case file, I applied all of the info learned in the last module to complete this
+	
+====================================================================================================================================
+
+Malware Analysis
+	History of Malware
+		Task 1 - Introduction
+			• Your grandpa's malware!
+		Task 2 - The Creeper Program
+			• The first concept of a computer virus, a self replicating program thought up in 1949
+			• Not proven until 1971 though
+			• Not /really/ malicious, just replicated and displayed a messsage
+		Task 3 - Reaper
+			• The person who redesigned Creeper made Reaper soon after
+			• This basically chased Creeper and removed Creeper files
+			• Also developed RSEXEC
+			• Also technically the first anti-virus
+		Task 4 - Wabbit
+			• Written in 1973
+			• Not networked fork-bomb
+		Task 5 - ANIMAL
+			• Written in 1975
+			• The first trojan
+			• Disguised as a game, would replicate itself into user directories (not harmful beyond this)
+		Task 6 - Elk Cloner
+			• Written in 1982 by a 15yo as a joke
+			• Boot-sector virus
+			• Embedded into a game, laid dormant until the 50th run
+			• After this it would display a screen with a poem, incidentally it overwrote reserved tracks and harmed the computer
+		Task 7 - The Morris Internet Worm
+			• Written in 1988
+			• Was supposed to just highlight security flaws, didn't check for infection when replicating, became a forkbomb
+			• Infected 6k machines, was the first person prosecuted under the '86 Computer Fraud and Abuse act
+		Task 8 - Cascade
+			• First to use encryption
+			• Executing COM files (similar to batch/.sh files)
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	MAL: Malware Introductory
+		Task 1 - What is the Purpose of Malware Analysis?
+			• Find Point of Entry (PoE)
+			• Finding IOCs
+			• Understanding what it does
+			• Prevent/Detect further infections
+		Task 2 - Understanding Malware Campaigns
+			• Targeted campaigns against entities (like spear-(ph)fishing)
+			• Mass campaigns (like fishing with a net)
+		Task 3 - Identifying if a Malware Attack has Happened
+			• Malware generally follows these steps and there's many points of each one that can be detected
+				1. Delivery
+				2. Execution
+				3. *Maintaining Persistence
+				4. *Propagation
+										*not all malware does these
+			• You can use known signatures (or heuristics based behavioral analysis) for detecting
+		Task 4 - Static Vs. Dynamic Analysis
+			• Static Analysis - Analyzing the malware without executing it
+			• Dynamic Analysis - Executing the malware (in a sandbox) and observing it
+		Task 5 - Discussion of Provided Tools & Their Uses
+			• Some Tools
+				○ Dependency Walker (depends)
+				○ PeID
+				○ PE Explorer
+				○ PEview
+				○ ResourceHacker
+				○ IDA Freeware
+				○ WinDbg
+				○ ResourceHacker
+		Task 6 - Connecting to the Windows Analysis Environment (Deploy)
+		Task 7 - Obtaining MD5 Checksums of Provided Files
+		Task 8 - Now lets see if the MD5 Checksums have been analysed before
+		Task 9 - Identifying if the Executables are obfuscated / packed
+			• Use the PeID tool to see the header bits denoting filetype
+		Task 10 - What is Obfuscation?
+			• Preventing the analysis of a program by obfuscating the code
+		Task 11 - Visualising the Differences Between Packed & Non-Packed Code
+			• PeID can detect packed code
+			• Packed code will look suspiciously empty compared to what's expected
+			• IDA Freeware is a good tool for analysis
+		Task 12 - Introduction to Strings
+			• This task is basically a repeat of the SysInternals module
+		Task 13 - Introduction to Imports
+			• Debuggers - Facilitates the execution, care using on malware on a non-sandboxed machine
+			• Disassemblers - Reverse compiled code from machine code to assembly
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	MAL: Strings
+		Task 1 - What are "strings"?
+		Task 2 - Practical: Extracting "strings" From an Application
+		Task 3 - Strings in the Context of Malware
+		Task 4 - Practical: Finding Bitcoin Addresses in Ransomware (Deploy!)
+		Task 5 - Summary
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	Basic Malware RE
+		Task 1 - Introduction
+		Task 2 - Strings :: Challenge 1
+			• I first used the Strings command to see if I could find anything but there was too much information to sift through
+			• After that I used IDA Free (Was introduced in Malware Introductory room)
+			• In here I could see the flag directly
+		Task 3 - Strings :: Challenge 2
+			• Same method here but the flag is across multiple vars, each housing one hexadecimal char for the flag
+		Task 4 - Strings 3 :: Challenge 3
+			• Wow, talk about a difficult one, I needed a writeup to help here as it required some assembly knowledge beyond my perview
+				○ Basically the string was loaded by LoadStringsA based on a uID param, this is the difficult part
+				○ It was 8 lines of assembly that constructed the uID
+				○ Here I used Resource Hacker to find the correct string
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	MAL: REMnux - The Redux
+		Task 1 - Introduction
+			• A Linux toolkit for reverse engineering and analyzing malware
+		Task 2 - Deploy
+		Task 3 - Analysing Malicious PDF's
+			• I use the tool peepdf to check a pdf for any js
+			• After finding js I can use extract js and pipe the content to another pdf
+			• Checking the strings gives me the attackers IP and port
+		Task 4 - Analysing Malicious Microsoft Office Macros
+			• vmonkey is a tool for analyzing vb macros without executing them
+		Task 5 - I Hope You Packed Your Bags
+			• File Entropy - As it says, essentially how random the data on a file is from 0-8 (0 not random -- 8 being fully random, i.e., encrypted)
+				○ Malware will often by obfuscated/packed for evasion, this will give it high entropy
+			• Packers - Basically double layering your executables, having the first be an unpacker to a heavily obfuscated 'packed' code
+				○ High entropy!
+				○ Low imports (Like only GetProcAddress and LoadLibrary)
+				○ May have parts named after some packers UPX
+		Task 6 - How's Your Memory?
+		Task 7 - Finishing Up
+		Task 8 - References & Further Reading Material
+			• Great resources here but too many to list! Task 8 of this module houses them:
+				○ https://tryhackme.com/r/room/malremnuxv2
+
+
+		
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--
+
+	
+====================================================================================================================================
+
+//////////////////////////////////////////// PLACEHOLDERRRRRRRRRRRRRRRRRRRRRRRRRRRRRR \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+	
+====================================================================================================================================
+	
+
+		Task 1 - 
+			• 
+		Task 2 - 
+			• 
+		Task 3 - 
+			• 
+		Task 4 - 
+			• 
+		Task 5 - 
+			• 
+		Task 6 - 
+			• 
+		Task 7 - 
+			• 
+		Task 8 - 
+			• 
+		Task 9 - 
+			• 
+		Task 10 - 
+			• 
+		Task 11 - 
+			• 
+		Task 12 - 
+			• 
+		Task 13 - 
+			• 
+		Task 14 - 
+			• 
+		Task 15 - 
+			• 
+		Task 16 - 
+			• 
+		Task 17 - 
+			• 
+		Task 18 - 
+			• 
+		Task 19 - 
+			• 
+		Task 20 - 
+			• 
+		Task 21 - 
+			• 
+		Task 22 - 
+			• 
+		Task 23 - 
+			• 
